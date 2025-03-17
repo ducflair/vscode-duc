@@ -38,28 +38,53 @@ export class FlatcManager {
             return this.flatcPath;
         }
 
+        console.log('FlatcManager: Looking for flatc binary');
+        
         // Check if flatc is already installed on the system
         try {
-            await execFile('flatc', ['--version']);
+            const result = await execFile('flatc', ['--version']);
+            console.log(`FlatcManager: Found flatc in PATH: ${result.stdout.trim()}`);
             this.flatcPath = 'flatc'; // It's in the PATH
             return this.flatcPath;
-        } catch (_error) {
+        } catch (error) {
+            console.log('FlatcManager: flatc not found in PATH, checking extension directory');
+            
             // Not found in PATH, check if we have it in our extension directory
             const platform = os.platform();
             const binDir = path.join(this.extensionPath, 'bin');
             const flatcBin = platform === 'win32' ? 'flatc.exe' : 'flatc';
             const localFlatcPath = path.join(binDir, flatcBin);
 
+            console.log(`FlatcManager: Checking for flatc at ${localFlatcPath}`);
+            
             if (fs.existsSync(localFlatcPath)) {
+                console.log('FlatcManager: flatc found in extension directory');
                 // Make sure it's executable on Unix platforms
                 if (platform !== 'win32') {
-                    fs.chmodSync(localFlatcPath, 0o755);
+                    try {
+                        fs.chmodSync(localFlatcPath, 0o755);
+                        console.log('FlatcManager: Set executable permissions');
+                    } catch (e) {
+                        console.error(`FlatcManager: Error setting executable permissions: ${e}`);
+                    }
                 }
-                this.flatcPath = localFlatcPath;
-                return localFlatcPath;
+                
+                // Verify the binary works
+                try {
+                    const result = await execFile(localFlatcPath, ['--version']);
+                    console.log(`FlatcManager: Local flatc version: ${result.stdout.trim()}`);
+                    this.flatcPath = localFlatcPath;
+                    return localFlatcPath;
+                } catch (e) {
+                    console.error(`FlatcManager: Local flatc execution failed: ${e}`);
+                    // Continue to download since local binary doesn't work
+                }
+            } else {
+                console.log('FlatcManager: flatc not found in extension directory');
             }
 
             // Need to download it
+            console.log('FlatcManager: Need to download flatc');
             return this.downloadFlatc();
         }
     }
@@ -81,15 +106,19 @@ export class FlatcManager {
      */
     private async downloadFlatc(): Promise<string> {
         if (this.isDownloading) {
+            console.log('FlatcManager: Already downloading flatc');
             throw new Error('Already downloading flatc');
         }
 
         this.isDownloading = true;
+        console.log('FlatcManager: Starting flatc download');
 
         try {
             // Determine download URL based on platform
             const platform = os.platform();
             const arch = os.arch();
+            
+            console.log(`FlatcManager: Platform: ${platform}, Architecture: ${arch}`);
             
             const flatbuffersVersion = '23.5.26'; // Use a stable version
             let downloadUrl: string;
@@ -106,49 +135,79 @@ export class FlatcManager {
             } else if (platform === 'linux') {
                 downloadUrl = `https://github.com/google/flatbuffers/releases/download/v${flatbuffersVersion}/Linux.flatc.binary.clang++-12.zip`;
             } else {
+                console.error(`FlatcManager: Unsupported platform: ${platform}`);
                 throw new Error(`Unsupported platform: ${platform}`);
             }
 
+            console.log(`FlatcManager: Download URL: ${downloadUrl}`);
             vscode.window.showInformationMessage('Downloading FlatBuffers compiler for Duc Viewer...');
 
             // Create bin directory if it doesn't exist
             const binDir = path.join(this.extensionPath, 'bin');
             if (!fs.existsSync(binDir)) {
+                console.log(`FlatcManager: Creating bin directory at ${binDir}`);
                 fs.mkdirSync(binDir, { recursive: true });
             }
 
             // Download zip file
             const zipPath = path.join(os.tmpdir(), `flatc-${Date.now()}.zip`);
+            console.log(`FlatcManager: Downloading to ${zipPath}`);
             await this.downloadFile(downloadUrl, zipPath);
+            console.log('FlatcManager: Download complete');
 
             // Extract zip file
+            console.log(`FlatcManager: Extracting to ${binDir}`);
             await extract(zipPath, { dir: binDir });
+            console.log('FlatcManager: Extraction complete');
 
             // Path to extracted flatc
             const flatcPath = path.join(binDir, flatcBin);
+            console.log(`FlatcManager: Flatc binary path: ${flatcPath}`);
+
+            // Verify the file exists
+            if (!fs.existsSync(flatcPath)) {
+                console.error(`FlatcManager: Extracted flatc binary not found at ${flatcPath}`);
+                
+                // List files in bin directory to debug
+                try {
+                    const files = fs.readdirSync(binDir);
+                    console.log(`FlatcManager: Files in bin directory: ${files.join(', ')}`);
+                } catch (e) {
+                    console.error(`FlatcManager: Error listing bin directory: ${e}`);
+                }
+                
+                throw new Error(`Extracted flatc binary not found at ${flatcPath}`);
+            }
 
             // Make executable on Unix platforms
             if (platform !== 'win32') {
+                console.log('FlatcManager: Setting executable permissions');
                 fs.chmodSync(flatcPath, 0o755);
             }
 
             // Clean up zip file
+            console.log('FlatcManager: Cleaning up zip file');
             fs.unlinkSync(zipPath);
 
             // Verify it works
+            console.log('FlatcManager: Verifying flatc binary');
             try {
-                await execFile(flatcPath, ['--version']);
+                const result = await execFile(flatcPath, ['--version']);
+                console.log(`FlatcManager: Flatc version: ${result.stdout.trim()}`);
             } catch (error) {
                 const execError = error as Error;
+                console.error(`FlatcManager: Failed to run the downloaded flatc binary: ${execError.message}`);
                 throw new Error(`Failed to run the downloaded flatc binary: ${execError.message}`);
             }
 
             this.flatcPath = flatcPath;
+            console.log('FlatcManager: FlatBuffers compiler downloaded successfully');
             vscode.window.showInformationMessage('FlatBuffers compiler downloaded successfully!');
             
             return flatcPath;
         } catch (err) {
             const error = err as Error;
+            console.error(`FlatcManager: Failed to download flatc: ${error.message}`);
             vscode.window.showErrorMessage(`Failed to download flatc: ${error.message}`);
             throw new Error(`Failed to download flatc: ${error.message}`);
         } finally {

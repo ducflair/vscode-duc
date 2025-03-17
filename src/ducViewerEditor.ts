@@ -105,34 +105,55 @@ class DucDocument extends Disposable implements vscode.CustomDocument {
         try {
             const tempDir = os.tmpdir();
             
+            // Add logging to track progress
+            console.log('DUC Viewer: Starting conversion to JSON');
+            
             // Download the schema file
             const schemaPath = path.join(tempDir, `duc_schema_${Date.now()}.fbs`);
+            console.log(`DUC Viewer: Downloading schema file to ${schemaPath}`);
             try {
                 await downloadFile(fbsUrl, schemaPath);
+                console.log('DUC Viewer: Schema file downloaded successfully');
             } catch (error) {
                 const downloadError = error as Error;
+                console.error(`DUC Viewer: Failed to download schema file: ${downloadError.message}`);
                 throw new Error(`Failed to download schema file: ${downloadError.message}`);
             }
             
             // Create a temp file for the binary data
             const tempPath = path.join(tempDir, `duc_temp_${Date.now()}.duc`);
             const fsPath = vscode.Uri.file(tempPath);
+            console.log(`DUC Viewer: Writing binary data to ${tempPath}`);
             
             // Write the binary data to the temp file
             try {
                 await vscode.workspace.fs.writeFile(fsPath, this._documentData);
+                console.log('DUC Viewer: Binary data written successfully');
             } catch (error) {
                 const writeError = error as Error;
-                fs.unlinkSync(schemaPath);
+                console.error(`DUC Viewer: Failed to write temporary file: ${writeError.message}`);
+                try { fs.unlinkSync(schemaPath); } catch (_) { /* ignore */ }
                 throw new Error(`Failed to write temporary file: ${writeError.message}`);
             }
 
             // Get the path to flatc (will download if needed)
-            const flatcPath = await this.flatcManager.getFlatcPath();
+            console.log('DUC Viewer: Getting flatc path');
+            let flatcPath;
+            try {
+                flatcPath = await this.flatcManager.getFlatcPath();
+                console.log(`DUC Viewer: Using flatc at ${flatcPath}`);
+            } catch (error) {
+                const flatcError = error as Error;
+                console.error(`DUC Viewer: Failed to get flatc: ${flatcError.message}`);
+                try { fs.unlinkSync(schemaPath); } catch (_) { /* ignore */ }
+                try { fs.unlinkSync(tempPath); } catch (_) { /* ignore */ }
+                throw new Error(`Failed to get flatc: ${flatcError.message}`);
+            }
 
             // Execute flatc to convert binary to JSON
+            console.log('DUC Viewer: Executing flatc to convert binary to JSON');
             try {
-                await execFile(flatcPath, [
+                const result = await execFile(flatcPath, [
                     '--json',
                     '--strict-json',
                     '--raw-binary',
@@ -143,9 +164,14 @@ class DucDocument extends Disposable implements vscode.CustomDocument {
                     '--',
                     tempPath
                 ]);
+                console.log('DUC Viewer: flatc conversion completed');
+                if (result.stderr) {
+                    console.log(`DUC Viewer: flatc stderr: ${result.stderr}`);
+                }
             } catch (error) {
                 const flatcError = error as { code?: string, message: string, stderr?: string };
-                fs.unlinkSync(schemaPath);
+                console.error(`DUC Viewer: flatc conversion failed: ${flatcError.message}\n${flatcError.stderr || ''}`);
+                try { fs.unlinkSync(schemaPath); } catch (_) { /* ignore */ }
                 try { fs.unlinkSync(tempPath); } catch (_) { /* ignore */ }
                 
                 throw new Error(`flatc conversion failed: ${flatcError.message}\n${flatcError.stderr || ''}`);
@@ -153,29 +179,72 @@ class DucDocument extends Disposable implements vscode.CustomDocument {
 
             // Read the JSON file that was created by flatc
             const jsonFilePath = path.join(tempDir, path.basename(tempPath, '.duc') + '.json');
-            let jsonData;
+            console.log(`DUC Viewer: Reading JSON from ${jsonFilePath}`);
+            let tempFileDeleted = false;
+            let jsonFileDeleted = false;
+
             try {
                 const jsonUri = vscode.Uri.file(jsonFilePath);
-                jsonData = await vscode.workspace.fs.readFile(jsonUri);
+                const jsonData = await vscode.workspace.fs.readFile(jsonUri);
+                if (!jsonData || jsonData.length === 0) {
+                    console.error('DUC Viewer: JSON data is empty');
+                    throw new Error('Generated JSON file is empty');
+                }
+                
                 this._jsonContent = new TextDecoder().decode(jsonData);
+                console.log('DUC Viewer: JSON conversion successful');
                 
                 // Clean up temp files
-                await vscode.workspace.fs.delete(fsPath);
-                await vscode.workspace.fs.delete(jsonUri);
+                try { 
+                    await vscode.workspace.fs.delete(fsPath); 
+                    tempFileDeleted = true;
+                    console.log('DUC Viewer: Deleted temp file');
+                } catch (e) { 
+                    console.error(`DUC Viewer: Failed to delete temp file: ${e}`); 
+                }
+                
+                try { 
+                    await vscode.workspace.fs.delete(jsonUri); 
+                    jsonFileDeleted = true;
+                    console.log('DUC Viewer: Deleted JSON file');
+                } catch (e) { 
+                    console.error(`DUC Viewer: Failed to delete JSON file: ${e}`); 
+                }
             } catch (error) {
                 const readError = error as Error;
+                console.error(`DUC Viewer: Failed to read generated JSON file: ${readError.message}`);
                 throw new Error(`Failed to read generated JSON file: ${readError.message}`);
             } finally {
                 // Ensure we clean up the schema file
-                fs.unlinkSync(schemaPath);
-                try { fs.unlinkSync(tempPath); } catch (_) { /* ignore */ }
-                try { fs.unlinkSync(jsonFilePath); } catch (_) { /* ignore */ }
+                try { fs.unlinkSync(schemaPath); } catch (e: any) { 
+                    if (!e.message.includes('ENOENT')) {
+                        console.error(`DUC Viewer: Failed to delete schema file: ${e}`); 
+                    }
+                }
+                
+                // Only attempt to delete if not already deleted
+                if (!tempFileDeleted) {
+                    try { fs.unlinkSync(tempPath); } catch (e: any) { 
+                        if (!e.message.includes('ENOENT')) {
+                            console.error(`DUC Viewer: Failed to delete temp file: ${e}`); 
+                        }
+                    }
+                }
+                
+                if (!jsonFileDeleted) {
+                    try { fs.unlinkSync(jsonFilePath); } catch (e: any) { 
+                        if (!e.message.includes('ENOENT')) {
+                            console.error(`DUC Viewer: Failed to delete JSON file: ${e}`); 
+                        }
+                    }
+                }
             }
             
             return this._jsonContent;
         } catch (err) {
             const error = err as Error;
             const errorMessage = `Error converting DUC file to JSON: ${error.message}`;
+            console.error(`DUC Viewer: ${errorMessage}`);
             vscode.window.showErrorMessage(errorMessage);
             
             return JSON.stringify({ 
@@ -287,13 +356,37 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
 
     private async sendJsonToWebview(document: DucDocument, webviewPanel: vscode.WebviewPanel): Promise<void> {
         try {
+            console.log('DUC Viewer: Sending JSON to webview');
+            webviewPanel.webview.postMessage({
+                type: 'update',
+                content: JSON.stringify({ 
+                    loading: true,
+                    message: 'Converting DUC file to JSON...'
+                })
+            });
+            
             const jsonContent = await document.getJSON();
+            
+            // Check if JSON content is valid
+            try {
+                JSON.parse(jsonContent);
+            } catch (parseError) {
+                console.error(`DUC Viewer: Invalid JSON content: ${parseError}`);
+                webviewPanel.webview.postMessage({
+                    type: 'error',
+                    message: `Failed to parse JSON: ${parseError}`
+                });
+                return;
+            }
+            
             webviewPanel.webview.postMessage({
                 type: 'update',
                 content: jsonContent
             });
+            console.log('DUC Viewer: JSON sent to webview successfully');
         } catch (error) {
             const err = error as Error;
+            console.error(`DUC Viewer: Error sending JSON to webview: ${err.message}`);
             webviewPanel.webview.postMessage({
                 type: 'error',
                 message: `Error: ${err.message}`
@@ -336,11 +429,38 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
         .error {
             color: var(--vscode-errorForeground);
             padding: 10px;
+            border: 1px solid var(--vscode-errorForeground);
+            margin-bottom: 10px;
+            background-color: var(--vscode-inputValidation-errorBackground);
+        }
+        .loading {
+            padding: 20px;
+            text-align: center;
+            font-style: italic;
+            color: var(--vscode-descriptionForeground);
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--vscode-progressBar-background);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div id="json-container"></div>
+    <div id="json-container">
+        <div class="loading">
+            <div class="loading-spinner"></div>
+            Loading DUC file content...
+        </div>
+    </div>
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         
@@ -374,16 +494,37 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
                 case 'update':
                     try {
                         const jsonObj = JSON.parse(message.content);
+                        
+                        // Check if this is a loading state
+                        if (jsonObj.loading === true) {
+                            document.getElementById('json-container').innerHTML = 
+                                '<div class="loading">' +
+                                '<div class="loading-spinner"></div>' +
+                                (jsonObj.message || 'Loading DUC file content...') +
+                                '</div>';
+                            return;
+                        }
+                        
+                        // Check if there's an error in the JSON
+                        if (jsonObj.error) {
+                            document.getElementById('json-container').innerHTML = 
+                                '<div class="error">' + jsonObj.error + '</div>';
+                            console.error("DUC Viewer error:", jsonObj.error);
+                            return;
+                        }
+                        
                         document.getElementById('json-container').innerHTML = syntaxHighlight(jsonObj);
                     } catch (error) {
                         document.getElementById('json-container').innerHTML = 
                             '<div class="error">Error parsing JSON: ' + error + '</div>' +
                             '<pre>' + message.content + '</pre>';
+                        console.error("DUC Viewer JSON parse error:", error, message.content);
                     }
                     break;
                 case 'error':
                     document.getElementById('json-container').innerHTML = 
                         '<div class="error">' + message.message + '</div>';
+                    console.error("DUC Viewer received error:", message.message);
                     break;
             }
         });
