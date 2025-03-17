@@ -36,9 +36,6 @@ jobs:
       - name: Build extension
         run: npm run compile
       
-      - name: Package VSIX
-        run: npx @vscode/vsce package -o duc.vsix
-      
       - name: Semantic Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
