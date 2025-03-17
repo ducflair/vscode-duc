@@ -1,0 +1,98 @@
+{
+	"name": "duc",
+	"displayName": "Duc",
+	"description": "View Duc binary files (FlatBuffers format)",
+	"version": "0.0.0-development",
+	"publisher": "ducflair",
+	"private": false,
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ducflair/vscode-duc"
+	},
+	"homepage": "https://github.com/ducflair/vscode-duc/blob/main/README.md",
+	"bugs": {
+		"url": "https://github.com/ducflair/vscode-duc/issues"
+	},
+	"engines": {
+		"vscode": "^1.74.0"
+	},
+	"categories": [
+		"Other",
+		"Formatters",
+		"Visualization"
+	],
+	"keywords": [
+		"duc",
+		"flatbuffers",
+		"binary",
+		"json",
+		"viewer",
+		"preview",
+		"CAD"
+	],
+	"icon": "media/icon.png",
+	"galleryBanner": {
+		"color": "#C80000",
+		"theme": "dark"
+	},
+	"activationEvents": [
+		"onCustomEditor:ducPreview.ducViewer"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "ducPreview.ducViewer",
+				"displayName": "Duc Viewer",
+				"selector": [
+					{
+						"filenamePattern": "*.duc"
+					}
+				]
+			}
+		],
+		"commands": [
+			{
+				"command": "ducPreview.openPreview",
+				"title": "Open with Duc Viewer",
+				"category": "Duc Preview"
+			},
+			{
+				"command": "ducPreview.checkFlatc",
+				"title": "Check if FlatBuffers compiler is installed",
+				"category": "Duc Preview"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"lint": "eslint . --config eslint.config.mjs",
+		"watch": "tsc -w -p ./",
+		"package": "vsce package",
+		"publish": "vsce publish",
+		"semantic-release": "npm run semantic-release"
+	},
+	"devDependencies": {
+		"@semantic-release/commit-analyzer": "^13.0.1",
+		"@semantic-release/exec": "^6.0.3",
+		"@semantic-release/github": "^11.0.1",
+		"@semantic-release/npm": "^12.0.1",
+		"semantic-release": "^24.2.1",
+		"@semantic-release/release-notes-generator": "^14.0.3",
+		"@eslint/js": "^9.13.0",
+		"@stylistic/eslint-plugin": "^2.9.0",
+		"@types/extract-zip": "^2.0.1",
+		"@types/node": "^20",
+		"@types/vscode": "^1.73.0",
+		"@vscode/vsce": "^2.32.0",
+		"eslint": "^9.13.0",
+		"typescript": "^5.8.2",
+		"typescript-eslint": "^8.26.0"
+	},
+	"dependencies": {
+		"extract-zip": "^2.0.1",
+		"flatbuffers": "^23.5.26"
+	}
+}
