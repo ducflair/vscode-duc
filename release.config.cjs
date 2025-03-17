@@ -16,7 +16,7 @@ module.exports = {
     ["@semantic-release/github", {
       assets: [
         {
-          path: ({ nextRelease }) => `duc-${nextRelease.version}.vsix`,
+          path: "duc-*.vsix",
           label: "VS Code Extension"
         }
       ]
