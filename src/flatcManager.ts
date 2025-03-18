@@ -38,16 +38,16 @@ export class FlatcManager {
             return this.flatcPath;
         }
 
-        console.log('FlatcManager: Looking for flatc binary');
+        console.debug('FlatcManager: Looking for flatc binary');
         
         // Check if flatc is already installed on the system
         try {
             const result = await execFile('flatc', ['--version']);
-            console.log(`FlatcManager: Found flatc in PATH: ${result.stdout.trim()}`);
+            console.debug(`FlatcManager: Found flatc in PATH: ${result.stdout.trim()}`);
             this.flatcPath = 'flatc'; // It's in the PATH
             return this.flatcPath;
         } catch (error) {
-            console.log('FlatcManager: flatc not found in PATH, checking extension directory');
+            console.debug('FlatcManager: flatc not found in PATH, checking extension directory');
             
             // Not found in PATH, check if we have it in our extension directory
             const platform = os.platform();
@@ -55,15 +55,15 @@ export class FlatcManager {
             const flatcBin = platform === 'win32' ? 'flatc.exe' : 'flatc';
             const localFlatcPath = path.join(binDir, flatcBin);
 
-            console.log(`FlatcManager: Checking for flatc at ${localFlatcPath}`);
+            console.debug(`FlatcManager: Checking for flatc at ${localFlatcPath}`);
             
             if (fs.existsSync(localFlatcPath)) {
-                console.log('FlatcManager: flatc found in extension directory');
+                console.debug('FlatcManager: flatc found in extension directory');
                 // Make sure it's executable on Unix platforms
                 if (platform !== 'win32') {
                     try {
                         fs.chmodSync(localFlatcPath, 0o755);
-                        console.log('FlatcManager: Set executable permissions');
+                        console.debug('FlatcManager: Set executable permissions');
                     } catch (e) {
                         console.error(`FlatcManager: Error setting executable permissions: ${e}`);
                     }
@@ -72,7 +72,7 @@ export class FlatcManager {
                 // Verify the binary works
                 try {
                     const result = await execFile(localFlatcPath, ['--version']);
-                    console.log(`FlatcManager: Local flatc version: ${result.stdout.trim()}`);
+                    console.debug(`FlatcManager: Local flatc version: ${result.stdout.trim()}`);
                     this.flatcPath = localFlatcPath;
                     return localFlatcPath;
                 } catch (e) {
@@ -80,11 +80,11 @@ export class FlatcManager {
                     // Continue to download since local binary doesn't work
                 }
             } else {
-                console.log('FlatcManager: flatc not found in extension directory');
+                console.debug('FlatcManager: flatc not found in extension directory');
             }
 
             // Need to download it
-            console.log('FlatcManager: Need to download flatc');
+            console.debug('FlatcManager: Need to download flatc');
             return this.downloadFlatc();
         }
     }
@@ -106,19 +106,19 @@ export class FlatcManager {
      */
     private async downloadFlatc(): Promise<string> {
         if (this.isDownloading) {
-            console.log('FlatcManager: Already downloading flatc');
+            console.debug('FlatcManager: Already downloading flatc');
             throw new Error('Already downloading flatc');
         }
 
         this.isDownloading = true;
-        console.log('FlatcManager: Starting flatc download');
+        console.debug('FlatcManager: Starting flatc download');
 
         try {
             // Determine download URL based on platform
             const platform = os.platform();
             const arch = os.arch();
             
-            console.log(`FlatcManager: Platform: ${platform}, Architecture: ${arch}`);
+            console.debug(`FlatcManager: Platform: ${platform}, Architecture: ${arch}`);
             
             const flatbuffersVersion = '23.5.26'; // Use a stable version
             let downloadUrl: string;
@@ -139,30 +139,30 @@ export class FlatcManager {
                 throw new Error(`Unsupported platform: ${platform}`);
             }
 
-            console.log(`FlatcManager: Download URL: ${downloadUrl}`);
+            console.debug(`FlatcManager: Download URL: ${downloadUrl}`);
             vscode.window.showInformationMessage('Downloading FlatBuffers compiler for Duc Viewer...');
 
             // Create bin directory if it doesn't exist
             const binDir = path.join(this.extensionPath, 'bin');
             if (!fs.existsSync(binDir)) {
-                console.log(`FlatcManager: Creating bin directory at ${binDir}`);
+                console.debug(`FlatcManager: Creating bin directory at ${binDir}`);
                 fs.mkdirSync(binDir, { recursive: true });
             }
 
             // Download zip file
             const zipPath = path.join(os.tmpdir(), `flatc-${Date.now()}.zip`);
-            console.log(`FlatcManager: Downloading to ${zipPath}`);
+            console.debug(`FlatcManager: Downloading to ${zipPath}`);
             await this.downloadFile(downloadUrl, zipPath);
-            console.log('FlatcManager: Download complete');
+            console.debug('FlatcManager: Download complete');
 
             // Extract zip file
-            console.log(`FlatcManager: Extracting to ${binDir}`);
+            console.debug(`FlatcManager: Extracting to ${binDir}`);
             await extract(zipPath, { dir: binDir });
-            console.log('FlatcManager: Extraction complete');
+            console.debug('FlatcManager: Extraction complete');
 
             // Path to extracted flatc
             const flatcPath = path.join(binDir, flatcBin);
-            console.log(`FlatcManager: Flatc binary path: ${flatcPath}`);
+            console.debug(`FlatcManager: Flatc binary path: ${flatcPath}`);
 
             // Verify the file exists
             if (!fs.existsSync(flatcPath)) {
@@ -171,7 +171,7 @@ export class FlatcManager {
                 // List files in bin directory to debug
                 try {
                     const files = fs.readdirSync(binDir);
-                    console.log(`FlatcManager: Files in bin directory: ${files.join(', ')}`);
+                    console.debug(`FlatcManager: Files in bin directory: ${files.join(', ')}`);
                 } catch (e) {
                     console.error(`FlatcManager: Error listing bin directory: ${e}`);
                 }
@@ -181,19 +181,19 @@ export class FlatcManager {
 
             // Make executable on Unix platforms
             if (platform !== 'win32') {
-                console.log('FlatcManager: Setting executable permissions');
+                console.debug('FlatcManager: Setting executable permissions');
                 fs.chmodSync(flatcPath, 0o755);
             }
 
             // Clean up zip file
-            console.log('FlatcManager: Cleaning up zip file');
+            console.debug('FlatcManager: Cleaning up zip file');
             fs.unlinkSync(zipPath);
 
             // Verify it works
-            console.log('FlatcManager: Verifying flatc binary');
+            console.debug('FlatcManager: Verifying flatc binary');
             try {
                 const result = await execFile(flatcPath, ['--version']);
-                console.log(`FlatcManager: Flatc version: ${result.stdout.trim()}`);
+                console.debug(`FlatcManager: Flatc version: ${result.stdout.trim()}`);
             } catch (error) {
                 const execError = error as Error;
                 console.error(`FlatcManager: Failed to run the downloaded flatc binary: ${execError.message}`);
@@ -201,7 +201,7 @@ export class FlatcManager {
             }
 
             this.flatcPath = flatcPath;
-            console.log('FlatcManager: FlatBuffers compiler downloaded successfully');
+            console.debug('FlatcManager: FlatBuffers compiler downloaded successfully');
             vscode.window.showInformationMessage('FlatBuffers compiler downloaded successfully!');
             
             return flatcPath;

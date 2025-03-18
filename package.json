@@ -94,6 +94,7 @@
 	},
 	"dependencies": {
 		"extract-zip": "^2.0.1",
-		"flatbuffers": "^23.5.26"
+		"flatbuffers": "^23.5.26",
+		"monaco-editor": "^0.52.2"
 	}
 }
