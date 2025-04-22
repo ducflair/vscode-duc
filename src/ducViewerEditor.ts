@@ -8,7 +8,7 @@ import * as https from 'https';
 import { FlatcManager } from './flatcManager';
 
 const execFile = util.promisify(childProcess.execFile);
-const fbsUrl = 'https://raw.githubusercontent.com/ducflair/duc/refs/heads/main/packages/core/canvas/duc/duc.fbs';
+const fbsUrl = 'https://raw.githubusercontent.com/ducflair/duc/refs/heads/main/schema/duc.fbs';
 
 /**
  * Download a file from a URL to a local file
