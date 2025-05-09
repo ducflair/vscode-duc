@@ -261,7 +261,14 @@ class DucDocument implements vscode.CustomDocument {
     public get uri() { return this._uri; }
     
     public async getJsonContent(): Promise<string> {
-        return this.convertDucToJson(this._fileData);
+        return vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Processing DUC File",
+            cancellable: false // Consider cancellable if feasible later
+        }, async (progress) => {
+            progress.report({ message: "Starting conversion..." });
+            return this.convertDucToJson(this._fileData, progress);
+        });
     }
     
     dispose(): void {
@@ -271,26 +278,32 @@ class DucDocument implements vscode.CustomDocument {
     /**
      * Convert DUC binary file to JSON using flatbuffers
      */
-    private async convertDucToJson(fileData: Uint8Array): Promise<string> {
+    private async convertDucToJson(fileData: Uint8Array, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<string> {
         try {
             const tempDir = os.tmpdir();
             console.debug('DUC Viewer: Starting conversion to JSON');
             
-            // Download the schema file
+            progress.report({ message: "Downloading DUC schema..." });
             const schemaPath = path.join(tempDir, `duc_schema_${Date.now()}.fbs`);
             await downloadFile(fbsUrl, schemaPath);
-            
-            // Create a temp file for the binary data
+            console.debug('DUC Viewer: Schema downloaded.');
+
+            progress.report({ message: "Preparing binary data..." });
             const tempPath = path.join(tempDir, `duc_temp_${Date.now()}.duc`);
             fs.writeFileSync(tempPath, fileData);
+            console.debug('DUC Viewer: Binary data prepared.');
             
-            // Get flatc path
-            const flatcPath = await this._flatcManager.getFlatcPath();
-            
+            progress.report({ message: "Locating flatc compiler..." });
+            const flatcPath = await this._flatcManager.getFlatcPath(); // This might trigger FlatcManager's own progress
+            console.debug(`DUC Viewer: flatc path: ${flatcPath}`);
+
+            progress.report({ message: "Executing flatc for JSON conversion..." });
+            console.debug('DUC Viewer: Executing flatc...');
             // Execute flatc to convert binary to JSON
-            const result = await execFile(flatcPath, [
+            await execFile(flatcPath, [
                 '--json',
                 '--strict-json',
+                '--allow-non-utf8',
                 '--raw-binary',
                 '--no-warnings',
                 '--defaults-json',
@@ -299,21 +312,66 @@ class DucDocument implements vscode.CustomDocument {
                 '--',
                 tempPath
             ]);
+            console.debug('DUC Viewer: flatc execution complete.');
             
-            // Read the JSON file created by flatc
+            progress.report({ message: "Reading converted JSON output..." });
             const jsonFilePath = path.join(tempDir, path.basename(tempPath, '.duc') + '.json');
             const jsonContent = fs.readFileSync(jsonFilePath, 'utf8');
+            console.debug('DUC Viewer: JSON content read.');
             
-            // Clean up temp files
-            try { fs.unlinkSync(schemaPath); } catch (_) { /* ignore */ }
-            try { fs.unlinkSync(tempPath); } catch (_) { /* ignore */ }
-            try { fs.unlinkSync(jsonFilePath); } catch (_) { /* ignore */ }
+            progress.report({ message: "Cleaning up temporary files..." });
+            try { fs.unlinkSync(schemaPath); } catch (e: any) { console.warn('DUC Viewer: Failed to delete temp schema', e.message); }
+            try { fs.unlinkSync(tempPath); } catch (e: any) { console.warn('DUC Viewer: Failed to delete temp duc file', e.message); }
+            try { fs.unlinkSync(jsonFilePath); } catch (e: any) { console.warn('DUC Viewer: Failed to delete temp json file', e.message); }
+            console.debug('DUC Viewer: Temporary files cleaned up.');
             
-            // Parse and format the JSON to ensure it's valid and properly formatted
-            return JSON.stringify(JSON.parse(jsonContent), null, 2);
-        } catch (error) {
-            console.error('DUC Viewer: Error in convertDucToJson', error);
-            throw error;
+            progress.report({ message: "Finalizing JSON..." });
+            const finalJson = JSON.stringify(JSON.parse(jsonContent), null, 2);
+            console.debug('DUC Viewer: JSON finalized.');
+            return finalJson;
+        } catch (execError: any) {
+            // Default base message from the execFile error, typically includes the command
+            let detailedMessage = (execError && typeof execError.message === 'string') 
+                                ? execError.message 
+                                : 'Failed to execute flatc command.';
+
+            // Log the raw error object for extension developer's debugging console
+            console.error('DUC Viewer: Raw error object from flatc execution:', execError);
+            if (execError && typeof execError === 'object') {
+                console.error('DUC Viewer: Keys of raw error object:', Object.keys(execError));
+            }
+
+            // Append Stderr information
+            if (execError && typeof execError.stderr !== 'undefined') {
+                const stderrStr = Buffer.isBuffer(execError.stderr) ? execError.stderr.toString().trim() : String(execError.stderr).trim();
+                detailedMessage += `\n\nStderr from flatc:\n${stderrStr.length > 0 ? stderrStr : '(empty)'}`;
+            } else {
+                detailedMessage += '\n\nStderr from flatc: (not available on error object)';
+            }
+
+            // Append Stdout information
+            if (execError && typeof execError.stdout !== 'undefined') {
+                const stdoutStr = Buffer.isBuffer(execError.stdout) ? execError.stdout.toString().trim() : String(execError.stdout).trim();
+                detailedMessage += `\n\nStdout from flatc:\n${stdoutStr.length > 0 ? stdoutStr : '(empty)'}`;
+            } else {
+                detailedMessage += '\n\nStdout from flatc: (not available on error object)';
+            }
+            
+            // Append exit code if available
+            if (execError && typeof execError.code === 'number') {
+                detailedMessage += `\n\nExit code: ${execError.code}`;
+            } else if (execError && typeof execError.code !== 'undefined') {
+                 detailedMessage += `\n\nExit code: ${execError.code} (type: ${typeof execError.code})`;
+            }
+
+            // Append signal if available
+            if (execError && typeof execError.signal === 'string') {
+                detailedMessage += `\n\nSignal: ${execError.signal}`;
+            } else if (execError && typeof execError.signal !== 'undefined') {
+                 detailedMessage += `\n\nSignal: ${execError.signal} (type: ${typeof execError.signal})`;
+            }
+            
+            throw new Error(detailedMessage);
         }
     }
 }
