@@ -306,7 +306,7 @@ class DucDocument implements vscode.CustomDocument {
                 '--allow-non-utf8',
                 '--raw-binary',
                 '--no-warnings',
-                '--defaults-json',
+                // '--defaults-json',
                 '-o', tempDir,
                 schemaPath,
                 '--',
@@ -326,9 +326,18 @@ class DucDocument implements vscode.CustomDocument {
             console.debug('DUC Viewer: Temporary files cleaned up.');
             
             progress.report({ message: "Finalizing JSON..." });
-            const finalJson = JSON.stringify(JSON.parse(jsonContent), null, 2);
-            console.debug('DUC Viewer: JSON finalized.');
-            return finalJson;
+
+            const parsedJson = JSON.parse(jsonContent);
+            if (parsedJson && parsedJson.files && Array.isArray(parsedJson.files.entries)) {
+                for (const entry of parsedJson.files.entries) {
+                    if (entry.value && entry.value.data) {
+                        const binaryData = new Uint8Array(entry.value.data);
+                        entry.value.data = binaryData.toString();
+                    }
+                }
+            }
+
+            return JSON.stringify(parsedJson, null, 2);
         } catch (execError: any) {
             // Default base message from the execFile error, typically includes the command
             let detailedMessage = (execError && typeof execError.message === 'string') 
