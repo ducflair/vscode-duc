@@ -12,7 +12,9 @@ export default [
 	{
 		ignores: [
 			'node_modules/*',
-			'out/*'
+			'out/*',
+			'scripts/*',
+			'release.config.cjs'
 		],
 	},
 	eslint.configs.recommended,

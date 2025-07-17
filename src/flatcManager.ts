@@ -46,7 +46,7 @@ export class FlatcManager {
             console.debug(`FlatcManager: Found flatc in PATH: ${result.stdout.trim()}`);
             this.flatcPath = 'flatc'; // It's in the PATH
             return this.flatcPath;
-        } catch (error) {
+        } catch {
             console.debug('FlatcManager: flatc not found in PATH, checking extension directory');
             
             // Not found in PATH, check if we have it in our extension directory
@@ -64,7 +64,7 @@ export class FlatcManager {
                     try {
                         fs.chmodSync(localFlatcPath, 0o755);
                         console.debug('FlatcManager: Set executable permissions');
-                    } catch (e) {
+                    } catch (e: unknown) {
                         console.error(`FlatcManager: Error setting executable permissions: ${e}`);
                     }
                 }
@@ -96,7 +96,7 @@ export class FlatcManager {
         try {
             await this.getFlatcPath();
             return true;
-        } catch (_error) {
+        } catch {
             return false;
         }
     }
@@ -158,8 +158,8 @@ export class FlatcManager {
                     try {
                         fs.unlinkSync(existingFlatcPath);
                         console.debug('FlatcManager: Old flatc binary removed.');
-                    } catch (e: any) {
-                        console.warn(`FlatcManager: Could not remove existing flatc: ${e.message}`);
+                    } catch (e: unknown) {
+                        console.debug(`FlatcManager: Could not remove existing flatc: ${(e as Error).message}`);
                     }
                 }
 
@@ -182,8 +182,8 @@ export class FlatcManager {
                     try {
                         const files = fs.readdirSync(binDir);
                         console.debug(`FlatcManager: Files currently in bin directory: ${files.join(', ')}`);
-                    } catch (e: any) {
-                        console.error(`FlatcManager: Error listing bin directory: ${e.message}`);
+                    } catch (e: unknown) {
+                        console.error(`FlatcManager: Error listing bin directory: ${(e as Error).message}`);
                     }
                     throw new Error(`Extracted flatc binary not found at ${extractedFlatcPath}. Check console logs.`);
                 }

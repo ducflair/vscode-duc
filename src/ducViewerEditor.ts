@@ -4,35 +4,10 @@ import * as path from 'path';
 import * as util from 'util';
 import * as childProcess from 'child_process';
 import * as fs from 'fs';
-import * as https from 'https';
 import { FlatcManager } from './flatcManager';
+import { DUC_SCHEMA } from './assets/schema';
 
 const execFile = util.promisify(childProcess.execFile);
-const fbsUrl = 'https://raw.githubusercontent.com/ducflair/duc/refs/heads/main/schema/duc.fbs';
-
-/**
- * Download a file from a URL to a local file
- */
-async function downloadFile(url: string, destPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(destPath);
-        https.get(url, (response) => {
-            if (response.statusCode !== 200) {
-                reject(new Error(`Failed to download file: ${response.statusCode} ${response.statusMessage}`));
-                return;
-            }
-
-            response.pipe(file);
-            file.on('finish', () => {
-                file.close();
-                resolve();
-            });
-        }).on('error', (err) => {
-            fs.unlink(destPath, () => {});
-            reject(err);
-        });
-    });
-}
 
 /**
  * Provider for DUC file editor
@@ -283,10 +258,12 @@ class DucDocument implements vscode.CustomDocument {
             const tempDir = os.tmpdir();
             console.debug('DUC Viewer: Starting conversion to JSON');
             
-            progress.report({ message: "Downloading DUC schema..." });
+            progress.report({ message: "Preparing DUC schema..." });
             const schemaPath = path.join(tempDir, `duc_schema_${Date.now()}.fbs`);
-            await downloadFile(fbsUrl, schemaPath);
-            console.debug('DUC Viewer: Schema downloaded.');
+            
+            // Write the embedded schema to a temporary file
+            fs.writeFileSync(schemaPath, DUC_SCHEMA, 'utf8');
+            console.debug('DUC Viewer: Schema prepared from embedded content.');
 
             progress.report({ message: "Preparing binary data..." });
             const tempPath = path.join(tempDir, `duc_temp_${Date.now()}.duc`);
@@ -320,9 +297,9 @@ class DucDocument implements vscode.CustomDocument {
             console.debug('DUC Viewer: JSON content read.');
             
             progress.report({ message: "Cleaning up temporary files..." });
-            try { fs.unlinkSync(schemaPath); } catch (e: any) { console.warn('DUC Viewer: Failed to delete temp schema', e.message); }
-            try { fs.unlinkSync(tempPath); } catch (e: any) { console.warn('DUC Viewer: Failed to delete temp duc file', e.message); }
-            try { fs.unlinkSync(jsonFilePath); } catch (e: any) { console.warn('DUC Viewer: Failed to delete temp json file', e.message); }
+            try { fs.unlinkSync(schemaPath); } catch (e: unknown) { console.warn('DUC Viewer: Failed to delete temp schema', (e as Error).message); }
+            try { fs.unlinkSync(tempPath); } catch (e: unknown) { console.warn('DUC Viewer: Failed to delete temp duc file', (e as Error).message); }
+            try { fs.unlinkSync(jsonFilePath); } catch (e: unknown) { console.warn('DUC Viewer: Failed to delete temp json file', (e as Error).message); }
             console.debug('DUC Viewer: Temporary files cleaned up.');
             
             progress.report({ message: "Finalizing JSON..." });
@@ -338,10 +315,13 @@ class DucDocument implements vscode.CustomDocument {
             }
 
             return JSON.stringify(parsedJson, null, 2);
-        } catch (execError: any) {
+        } catch (execError: unknown) {
+            // Cast to the expected error structure from child_process.execFile
+            const error = execError as Error & { stderr?: Buffer | string, stdout?: Buffer | string, code?: number, signal?: string };
+            
             // Default base message from the execFile error, typically includes the command
-            let detailedMessage = (execError && typeof execError.message === 'string') 
-                                ? execError.message 
+            let detailedMessage = (error && typeof error.message === 'string') 
+                                ? error.message 
                                 : 'Failed to execute flatc command.';
 
             // Log the raw error object for extension developer's debugging console
@@ -351,33 +331,33 @@ class DucDocument implements vscode.CustomDocument {
             }
 
             // Append Stderr information
-            if (execError && typeof execError.stderr !== 'undefined') {
-                const stderrStr = Buffer.isBuffer(execError.stderr) ? execError.stderr.toString().trim() : String(execError.stderr).trim();
+            if (error && typeof error.stderr !== 'undefined') {
+                const stderrStr = Buffer.isBuffer(error.stderr) ? error.stderr.toString().trim() : String(error.stderr).trim();
                 detailedMessage += `\n\nStderr from flatc:\n${stderrStr.length > 0 ? stderrStr : '(empty)'}`;
             } else {
                 detailedMessage += '\n\nStderr from flatc: (not available on error object)';
             }
 
             // Append Stdout information
-            if (execError && typeof execError.stdout !== 'undefined') {
-                const stdoutStr = Buffer.isBuffer(execError.stdout) ? execError.stdout.toString().trim() : String(execError.stdout).trim();
+            if (error && typeof error.stdout !== 'undefined') {
+                const stdoutStr = Buffer.isBuffer(error.stdout) ? error.stdout.toString().trim() : String(error.stdout).trim();
                 detailedMessage += `\n\nStdout from flatc:\n${stdoutStr.length > 0 ? stdoutStr : '(empty)'}`;
             } else {
                 detailedMessage += '\n\nStdout from flatc: (not available on error object)';
             }
             
             // Append exit code if available
-            if (execError && typeof execError.code === 'number') {
-                detailedMessage += `\n\nExit code: ${execError.code}`;
-            } else if (execError && typeof execError.code !== 'undefined') {
-                 detailedMessage += `\n\nExit code: ${execError.code} (type: ${typeof execError.code})`;
+            if (error && typeof error.code === 'number') {
+                detailedMessage += `\n\nExit code: ${error.code}`;
+            } else if (error && typeof error.code !== 'undefined') {
+                 detailedMessage += `\n\nExit code: ${error.code} (type: ${typeof error.code})`;
             }
 
             // Append signal if available
-            if (execError && typeof execError.signal === 'string') {
-                detailedMessage += `\n\nSignal: ${execError.signal}`;
-            } else if (execError && typeof execError.signal !== 'undefined') {
-                 detailedMessage += `\n\nSignal: ${execError.signal} (type: ${typeof execError.signal})`;
+            if (error && typeof error.signal === 'string') {
+                detailedMessage += `\n\nSignal: ${error.signal}`;
+            } else if (error && typeof error.signal !== 'undefined') {
+                 detailedMessage += `\n\nSignal: ${error.signal} (type: ${typeof error.signal})`;
             }
             
             throw new Error(detailedMessage);

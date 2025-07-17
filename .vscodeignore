@@ -1,6 +1,9 @@
 .vscode/**
 **/*.ts
+!out/**/*.js
 **/*.map
 .gitignore
 tslint.json
 tsconfig.json
+src/assets/duc.fbs
+scripts/

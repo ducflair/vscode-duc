@@ -33,7 +33,7 @@
 	],
 	"icon": "media/icon.png",
 	"galleryBanner": {
-		"color": "#C80000",
+		"color": "#261C19",
 		"theme": "dark"
 	},
 	"activationEvents": [
@@ -66,10 +66,12 @@
 		]
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run compile",
+		"vscode:prepublish": "npm run download-schema && npm run compile",
+		"download-schema": "node scripts/download-schema.js",
+		"precompile": "npm run download-schema",
 		"compile": "tsc -p ./",
 		"lint": "eslint . --config eslint.config.mjs",
-		"watch": "tsc -w -p ./",
+		"watch": "npm run download-schema && tsc -w -p ./",
 		"package": "vsce package",
 		"publish": "vsce publish",
 		"semantic-release": "npm run semantic-release"

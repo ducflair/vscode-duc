@@ -31,7 +31,7 @@ Alternatively, you can:
 
 The extension:
 1. Reads the binary .duc file
-2. Downloads the Duc schema file from the official repository
+2. Uses an embedded Duc schema file (downloaded during build time)
 3. Automatically downloads the FlatBuffers compiler (flatc) if needed
 4. Uses the FlatBuffers compiler to convert the binary to JSON
 5. Displays the resulting JSON in a custom editor with syntax highlighting
@@ -41,11 +41,11 @@ The extension:
 ### Common Issues
 
 1. **First-time loading is slow**
-   - The initial load might take a few seconds as the extension downloads the FlatBuffers compiler
+   - The initial load might take a few seconds as the extension downloads the FlatBuffers compiler (only if not already installed)
 
 2. **Conversion fails**
    - Check that you have a valid .duc file
-   - Ensure you have internet access (needed to download the schema and potentially the compiler)
+   - Ensure you have internet access if the FlatBuffers compiler needs to be downloaded
    - Try running the "Check if FlatBuffers compiler is installed" command from the Command Palette
 
 ## Development
