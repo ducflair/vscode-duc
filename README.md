@@ -27,6 +27,31 @@ Alternatively, you can:
 1. Right-click on a .duc file in the Explorer
 2. Select "Open with Duc Viewer"
 
+## Custom Schema Support
+
+The extension comes with an embedded default schema, but you can use your own custom FlatBuffers schema (.fbs) file if needed:
+
+### Using a Custom Schema
+
+1. **From Command Palette**: 
+   - Open Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
+   - Run "Duc: Select Custom FlatBuffers Schema (.fbs)"
+   - Browse and select your custom .fbs file
+
+2. **From Explorer Context Menu**: Right-click any .fbs file and select relevant commands
+
+### Managing Schemas
+
+- **Switch back to default**: Command Palette → "Duc: Clear Custom Schema (Use Default)"
+- **Workspace vs Global**: Settings are saved per workspace when available, otherwise globally
+- **Auto-reload**: The extension will use your updated schema file automatically
+
+### When to Use Custom Schema
+
+- When the default embedded schema doesn't match your .duc file format
+- When working with modified or extended Duc file formats
+- When debugging schema compatibility issues
+
 ## How it works
 
 The extension:
@@ -45,8 +70,15 @@ The extension:
 
 2. **Conversion fails**
    - Check that you have a valid .duc file
+   - Try using a custom schema if the default doesn't match your file format
+   - Use Command Palette → "Duc: Select Custom FlatBuffers Schema (.fbs)" to browse for your own schema
    - Ensure you have internet access if the FlatBuffers compiler needs to be downloaded
    - Try running the "Check if FlatBuffers compiler is installed" command from the Command Palette
+
+3. **Schema compatibility issues**
+   - If you get parsing errors, your .duc file might use a different schema version
+   - Try selecting a custom schema: Command Palette → "Duc: Select Custom FlatBuffers Schema (.fbs)"
+   - Check that your custom .fbs file is valid and readable
 
 ## Development
 

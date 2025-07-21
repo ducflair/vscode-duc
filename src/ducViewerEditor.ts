@@ -5,6 +5,7 @@ import * as util from 'util';
 import * as childProcess from 'child_process';
 import * as fs from 'fs';
 import { FlatcManager } from './flatcManager';
+import { CustomSchemaManager } from './customSchemaManager';
 import { DUC_SCHEMA } from './assets/schema';
 
 const execFile = util.promisify(childProcess.execFile);
@@ -14,6 +15,7 @@ const execFile = util.promisify(childProcess.execFile);
  */
 export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<DucDocument> {
     private flatcManager: FlatcManager;
+    private customSchemaManager: CustomSchemaManager;
 
     public static register(context: vscode.ExtensionContext): vscode.Disposable {
         return vscode.window.registerCustomEditorProvider(
@@ -28,6 +30,7 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
 
     constructor(private readonly context: vscode.ExtensionContext) {
         this.flatcManager = FlatcManager.getInstance(context);
+        this.customSchemaManager = CustomSchemaManager.getInstance(context);
     }
 
     async openCustomDocument(
@@ -61,7 +64,7 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
         } catch (error) {
             const errorMessage = `Error processing DUC file: ${(error as Error).message}`;
             console.error(errorMessage);
-            webviewPanel.webview.html = this.getErrorHtml(errorMessage);
+            webviewPanel.webview.html = this.getErrorHtml(webviewPanel.webview, errorMessage);
         }
     }
 
@@ -106,35 +109,110 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
         </html>`;
     }
 
-    private getErrorHtml(message: string): string {
+    private getErrorHtml(webview: vscode.Webview, message: string): string {
+        const currentSchema = this.customSchemaManager.getCurrentSchemaDisplayName();
+        
         return `
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="Content-Security-Policy" content="
+                default-src 'none';
+                style-src ${webview.cspSource} 'unsafe-inline';
+                script-src ${webview.cspSource} 'unsafe-inline';
+            ">
             <style>
                 body {
                     display: flex;
+                    flex-direction: column;
                     justify-content: center;
                     align-items: center;
                     height: 100vh;
                     margin: 0;
                     font-family: var(--vscode-font-family);
                     color: var(--vscode-foreground);
+                    background-color: var(--vscode-editor-background);
                 }
-                .error {
+                .error-container {
                     text-align: center;
-                    color: var(--vscode-errorForeground);
-                    border: 1px solid var(--vscode-errorForeground);
-                    padding: 20px;
-                    border-radius: 5px;
                     max-width: 80%;
+                    padding: 20px;
+                    border: 1px solid var(--vscode-errorForeground);
+                    border-radius: 5px;
+                    background-color: var(--vscode-inputValidation-errorBackground);
+                }
+                .error-title {
+                    color: var(--vscode-errorForeground);
+                    font-size: 18px;
+                    font-weight: bold;
+                    margin-bottom: 15px;
+                }
+                .error-message {
+                    color: var(--vscode-errorForeground);
+                    margin-bottom: 20px;
+                    white-space: pre-wrap;
+                    font-family: var(--vscode-editor-font-family);
+                }
+                .schema-info {
+                    margin: 20px 0;
+                    padding: 15px;
+                    background-color: var(--vscode-editor-inactiveSelectionBackground);
+                    border-radius: 3px;
+                }
+                .schema-label {
+                    font-weight: bold;
+                    margin-bottom: 5px;
+                }
+                .schema-current {
+                    font-family: var(--vscode-editor-font-family);
+                    color: var(--vscode-descriptionForeground);
+                }
+                .help-text {
+                    margin-top: 15px;
+                    font-size: 14px;
+                    color: var(--vscode-descriptionForeground);
+                    line-height: 1.4;
+                }
+                .command-hint {
+                    background-color: var(--vscode-textCodeBlock-background);
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 12px;
                 }
             </style>
         </head>
         <body>
-            <div class="error">${message}</div>
+            <div class="error-container">
+                <div class="error-title">Failed to Process DUC File</div>
+                <div class="error-message">${this.escapeHtml(message)}</div>
+                
+                <div class="schema-info">
+                    <div class="schema-label">Current Schema:</div>
+                    <div class="schema-current">${currentSchema}</div>
+                </div>
+
+                <div class="help-text">
+                    Try using a custom schema if the default doesn't match your file format:<br>
+                    • Command Palette → <span class="command-hint">Duc: Select Custom FlatBuffers Schema (.fbs)</span><br>
+                    • Or use: <span class="command-hint">Duc: Clear Custom Schema (Use Default)</span>
+                </div>
+            </div>
         </body>
         </html>`;
+    }
+
+    private escapeHtml(text: string): string {
+        const map: { [key: string]: string } = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, (m) => map[m]);
     }
 
     private getMonacoEditorHtml(webview: vscode.Webview, jsonData: string): string {
@@ -180,6 +258,8 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
             
             <script src="${monacoBase}/vs/loader.js"></script>
             <script>
+                const vscode = acquireVsCodeApi();
+
                 // Configure loader to use monaco
                 require.config({ paths: { vs: '${monacoBase}/vs' } });
                 
@@ -224,6 +304,7 @@ export class DucViewerProvider implements vscode.CustomReadonlyEditorProvider<Du
  */
 class DucDocument implements vscode.CustomDocument {
     private _flatcManager: FlatcManager;
+    private _customSchemaManager: CustomSchemaManager;
     
     constructor(
         private _uri: vscode.Uri,
@@ -231,6 +312,7 @@ class DucDocument implements vscode.CustomDocument {
         private _context: vscode.ExtensionContext
     ) {
         this._flatcManager = FlatcManager.getInstance(_context);
+        this._customSchemaManager = CustomSchemaManager.getInstance(_context);
     }
 
     public get uri() { return this._uri; }
@@ -258,12 +340,19 @@ class DucDocument implements vscode.CustomDocument {
             const tempDir = os.tmpdir();
             console.debug('DUC Viewer: Starting conversion to JSON');
             
+            // Try to get custom schema first, fall back to embedded schema
             progress.report({ message: "Preparing DUC schema..." });
             const schemaPath = path.join(tempDir, `duc_schema_${Date.now()}.fbs`);
             
-            // Write the embedded schema to a temporary file
-            fs.writeFileSync(schemaPath, DUC_SCHEMA, 'utf8');
-            console.debug('DUC Viewer: Schema prepared from embedded content.');
+            const customSchemaContent = await this._customSchemaManager.getCustomSchemaContent();
+            if (customSchemaContent) {
+                console.debug('DUC Viewer: Using custom schema');
+                fs.writeFileSync(schemaPath, customSchemaContent, 'utf8');
+            } else {
+                console.debug('DUC Viewer: Using default embedded schema');
+                fs.writeFileSync(schemaPath, DUC_SCHEMA, 'utf8');
+            }
+            console.debug('DUC Viewer: Schema prepared.');
 
             progress.report({ message: "Preparing binary data..." });
             const tempPath = path.join(tempDir, `duc_temp_${Date.now()}.duc`);

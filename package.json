@@ -56,14 +56,35 @@
 			{
 				"command": "ducPreview.openPreview",
 				"title": "Open with Duc Viewer",
-				"category": "Duc Preview"
+				"category": "Duc"
 			},
 			{
 				"command": "ducPreview.checkFlatc",
 				"title": "Check if FlatBuffers compiler is installed",
-				"category": "Duc Preview"
+				"category": "Duc"
+			},
+			{
+				"command": "ducPreview.selectCustomSchema",
+				"title": "Select Custom FlatBuffers Schema (.fbs)",
+				"category": "Duc"
+			},
+			{
+				"command": "ducPreview.clearCustomSchema",
+				"title": "Clear Custom Schema (Use Default)",
+				"category": "Duc"
 			}
-		]
+		],
+		"configuration": {
+			"type": "object",
+			"title": "Duc",
+			"properties": {
+				"ducPreview.customSchemaPath": {
+					"type": "string",
+					"description": "Path to custom FlatBuffers schema (.fbs) file to use instead of the default embedded schema",
+					"scope": "resource"
+				}
+			}
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run download-schema && npm run compile",
