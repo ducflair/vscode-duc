@@ -15,7 +15,7 @@
 		"url": "https://github.com/ducflair/vscode-duc/issues"
 	},
 	"engines": {
-		"vscode": "^1.100.0"
+		"vscode": "^1.99.0"
 	},
 	"categories": [
 		"Other",
@@ -107,7 +107,7 @@
 		"@stylistic/eslint-plugin": "^4.2.0",
 		"@types/extract-zip": "^2.0.3",
 		"@types/node": "^22.15.17",
-		"@types/vscode": "^1.100.0",
+		"@types/vscode": "^1.99.0",
 		"@vscode/vsce": "^3.3.2",
 		"eslint": "^9.26.0",
 		"semantic-release": "^24.2.3",
