@@ -12,10 +12,6 @@ module.exports = {
     ["semantic-release-vsce", {
       "packageVsix": true,
       "publish": true,
-      "packagePath": "./"
-    }],
-    ["@semantic-release/exec", {
-      "prepareCmd": "npx ovsx publish duc-${nextRelease.version}.vsix --pat ${OVSX_PAT}"
     }],
     ["@semantic-release/github", {
       assets: [
