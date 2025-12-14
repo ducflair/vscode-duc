@@ -72,8 +72,24 @@
 				"command": "ducPreview.clearCustomSchema",
 				"title": "Clear Custom Schema (Use Default)",
 				"category": "Duc"
+			},
+			{
+				"command": "ducPreview.openWebviewPreview",
+				"title": "Open Preview",
+				"category": "Duc",
+				"icon": "$(open-preview)"
 			}
 		],
+		"menus": {
+			"editor/title": [
+				{
+					"command": "ducPreview.openWebviewPreview",
+					"group": "navigation",
+					"icon": "$(open-preview)",
+					"when": "activeCustomEditorId == ducPreview.ducViewer"
+				}
+			]
+		},
 		"configuration": {
 			"type": "object",
 			"title": "Duc",
