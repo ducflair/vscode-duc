@@ -13,6 +13,10 @@ Thank you for your interest in contributing to Duc Preview! This document provid
 
 This project uses ESLint for code style enforcement. Run `npm run lint` to check your code.
 
+## Commit Messages
+
+To contribute, please follow the [Conventional Commits](https://www.conventionalcommits.org/) specification for your commit messages to ensure proper versioning.
+
 ## Pull Requests
 
 1. Create a branch for your changes
