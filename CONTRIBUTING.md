@@ -22,9 +22,7 @@ This project uses ESLint for code style enforcement. Run `npm run lint` to check
 
 ## Extensions Structure
 
-- `src/ducViewerEditor.ts`: Main editor implementation for Duc files
-- `src/flatcManager.ts`: Manages downloading and using the FlatBuffers compiler
-- `src/extension.ts`: Entry point for the extension
+- `src/extension.ts`: Entry point for the extension and editor association defaults
 - `src/dispose.ts`: Utilities for resource disposal
 - `src/util.ts`: Miscellaneous utilities
 
@@ -34,4 +32,4 @@ If you're thinking of adding a new feature or fixing a bug, please first check i
 
 ## License
 
-By contributing to this project, you agree that your contributions will be licensed under the project's MIT license. 
+By contributing to this project, you agree that your contributions will be licensed under the project's MIT license.

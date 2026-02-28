@@ -4,5 +4,3 @@ bin/
 node_modules/
 .vscode-test/
 .DS_Store
-# Ignore generated schema files - they are generated during build
-src/assets/
